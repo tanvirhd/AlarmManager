@@ -1,11 +1,16 @@
 package com.example.alarmmanager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -13,13 +18,15 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.widget.Toast;
 
 import com.example.alarmmanager.databinding.ActivityMainBinding;
 
 import static java.security.AccessController.getContext;
 
 public class MainActivity extends AppCompatActivity {
-    public static int ACTION_MANAGE_OVERLAY_PERMISSION_REQUEST_CODE= 2323;
+    public static final int ACTION_MANAGE_OVERLAY_PERMISSION_REQUEST_CODE= 2323;
+    public static final int ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_REQUEST_CODE= 2324;
     private static final String TAG = "debig:MainActivity";
     private ActivityMainBinding binding;
     String alarmtime;
@@ -34,6 +41,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         myAlarmManager = new MyAlarmManager(MainActivity.this);
         powerManager = (PowerManager)getSystemService(Context.POWER_SERVICE);
+
+        if(powerManager.isIgnoringBatteryOptimizations("com.example.alarmmanager")){
+            Toast.makeText(this, "Not Optimized", Toast.LENGTH_SHORT).show();
+        }else{
+            requestPermission();
+            Toast.makeText(this, "Optimized", Toast.LENGTH_SHORT).show();
+        }
 
         //this will open auto start screen where user can enable autorun permission for your app
         String manufacturer = "xiaomi";
@@ -87,21 +101,55 @@ public class MainActivity extends AppCompatActivity {
                     Uri.parse("package:" + getApplicationContext().getPackageName()));
             startActivityForResult(intent, ACTION_MANAGE_OVERLAY_PERMISSION_REQUEST_CODE);
         }
+    }*/
+
+    void requestPermission(){
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getApplicationContext().getPackageName()));
+        startActivityForResult(intent, ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_REQUEST_CODE);
     }
 
     @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        switch (requestCode){
+            case ACTION_MANAGE_OVERLAY_PERMISSION_REQUEST_CODE:
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!Settings.canDrawOverlays(getApplicationContext())) {
+                        Log.d(TAG, "onActivityResult: permission denied");
+                    } else {
+                        Log.d(TAG, "onActivityResult: permission granted");
+                    }
 
-        if (requestCode == ACTION_MANAGE_OVERLAY_PERMISSION_REQUEST_CODE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (!Settings.canDrawOverlays(getApplicationContext())) {
-                    Log.d(TAG, "onActivityResult: permission denied");
-                } else {
-                    Log.d(TAG, "onActivityResult: permission granted");
                 }
-
-            }
+                break;
+            case ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_REQUEST_CODE:
+                switch (resultCode){
+                    case RESULT_OK:
+                        Log.d(TAG, "onActivityResult: Permission granted.App not optimized.");
+                        break;
+                    case RESULT_CANCELED:
+                        new AlertDialog.Builder(this)
+                                .setTitle("Allow app to run in background")
+                                .setMessage( "Alarm manager needs to have permission to run in background to perform properly, unexpected behavious of alarm may occur otherwise." )
+                                .setPositiveButton( "Allow" , new
+                                        DialogInterface.OnClickListener() {
+                                            @Override
+                                            public void onClick (DialogInterface paramDialogInterface , int paramInt) {
+                                                requestPermission();
+                                            }
+                                        })
+                                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        Toast.makeText(MainActivity.this, "Alarm may not work properly", Toast.LENGTH_SHORT).show();
+                                    }
+                                })
+                                .show() ;
+                        Log.d(TAG, "onActivityResult: RESULT_CANCELED");
+                        break;
+                }
+                break;
+            default:
+                super.onActivityResult(requestCode, resultCode, data);
         }
-    }*/
+    }
 }
